@@ -97,7 +97,7 @@ INTC_MI_MER		EQU 0FFF8901C	; Master enable register
 
 				ORG 0
 				MOVE 10000,SP
-				JP GLAVNI
+				JP MAIN
 				
 ;				ORG 8
 ;				DW 100
@@ -109,37 +109,49 @@ INTC_MI_MER		EQU 0FFF8901C	; Master enable register
 				PUSH R0
 				LOAD R0,(GPIO1_BUTTONS)
 				OR R0,R0,R0
-				JR_Z PUSTENOFJA
-				LOAD R0,(PUSTENO)
+				JR_Z PUSTENO_NMI			; gumb je pusten
+				LOAD R0,(PUSTENO_CONST)
 				OR R0,R0,R0
-				JR_Z KRAJ
+				JR_Z KRAJ_NMI				; prethodno gumb nije bio pusten
 				
-UPALI			LOAD R0,(PRETH)
+UPALI_NMI		LOAD R0,(PRETH_CONST)
 				XOR R0,1,R0
-				STORE R0,(PRETH)
+				STORE R0,(PRETH_CONST)
 				STORE R0, (GPIO0_LEDICE)
 				MOVE 0,R0
-				STORE R0,(PUSTENO)
-				JR KRAJ
+				STORE R0,(PUSTENO_CONST)
+				JR KRAJ_NMI
 
-PUSTENOFJA 		MOVE 1,R0
-				STORE R0,(PUSTENO)
+PUSTENO_NMI		MOVE 1,R0
+				STORE R0,(PUSTENO_CONST)
 
-KRAJ			POP R0
+KRAJ_NMI		POP R0
 				MOVE R0,SR
 				POP R0
 				RETN
 				
-GLAVNI	 		MOVE %B 10000, SR
+MAIN	 		MOVE %B 10000, SR 			; GIE enable
 				MOVE 3,R0
-				STORE R0,(INTC_NMI_MER)
-				MOVE -1,R0
-				STORE R0,(INTC_NMI_SIE)
-				STORE R0,(GPIO1_GIER)
-				STORE R0,(GPIO1_IER)
+				STORE R0,(INTC_NMI_MER)		; enable
+				MOVE -1,R0					; nemaskirajuci
+				STORE R0,(INTC_NMI_SIE)		; prekid,
+				STORE R0,(GPIO1_GIER)		; globalni enable za
+				STORE R0,(GPIO1_IER)		; prekide
 						
-LOOP			JR LOOP
-				
+LOOP_MAIN		JR LOOP_MAIN				; glavni
+
+CEKAJ			PUSH R0
+				LOAD R0,(WAIT_CONST)
+PETLJA_CEKAJ	SUB R0,1,R0
+				JR_NZ PETLJA_CEKAJ
+				POP R0
+				RET
+		
+PRETH_CONST		DW 0
+PUSTENO_CONST	DW 1
+		
+WAIT_CONST	 	DW %D 10000
+
 ;				ORG 100
 ;				PUSH R0
 ;				MOVE 0FFFB, R0
@@ -148,20 +160,6 @@ LOOP			JR LOOP
 ;				STORE R0, (GPIO0_LEDICE)
 ;				POP R0
 ;				RETI
-				
-;				HALT
-
-CEKAJ			PUSH R0
-				LOAD R0,(WAIT)
-PETLJA			SUB R0,1,R0
-				JR_NZ PETLJA
-				POP R0
-				RET
-		
-PRETH			DW 0
-PUSTENO			DW 1
-		
-WAIT			DW %D 10000
 
 		
 		
