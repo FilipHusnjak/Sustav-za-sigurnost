@@ -92,6 +92,8 @@ INTC_MI_SIE		EQU 0FFF89010	; Set interrupt enable
 INTC_MI_CIE		EQU 0FFF89014	; Clear interrupt enable
 INTC_MI_MER		EQU 0FFF8901C	; Master enable register
 
+ADC_A0			EQU	0FFF8A244	; Vrijednost A/D pretvorbe na ulazu A0
+
 
 ; PROGRAMSKI KOD ZA "SUSTAV ZA SIGURNOST" ###########################
 
