@@ -117,55 +117,66 @@ MAIN			MOVE 10000, SP	; inicijalizacija SP
 				PUSH R0
 				CALL WAIT_DEBOUNCE
 				LOAD R0, (GPIO1_SWITCHES)
-				AND R0, 2, R0
-				JR_Z UGASI_NMI			; gumb je pusten
+				AND  R0, 2, R0
+				JR_Z UGASI_NMI				; gumb je pusten
+				
 				LOAD R0, (BUTTON_RELEASE_CONST)
-				OR R0, R0, R0
+				OR   R0, R0, R0
 				JR_Z KRAJ_NMI				; prethodno gumb nije bio pusten
 				
-UPALI_NMI		MOVE 2, R0
+UPALI_NMI		MOVE  2, R0
 				STORE R0, (GPIO0_RGB)
-				MOVE 0, R0
+				MOVE  0, R0
 				STORE R0, (BUTTON_RELEASE_CONST)
-				LOAD R0, (BUTTON_PREVIOUS_CONST)
-				XOR R0, 1, R0
+				LOAD  R0, (BUTTON_PREVIOUS_CONST)
+				XOR   R0, 1, R0
 				STORE R0, (BUTTON_PREVIOUS_CONST)
-				JR KRAJ_NMI
+				JR    KRAJ_NMI
 
-UGASI_NMI		MOVE 1, R0
+UGASI_NMI		MOVE  1, R0
 				STORE R0, (BUTTON_RELEASE_CONST)
-				MOVE 4, R0
+				MOVE  4, R0
 				STORE R0, (GPIO0_RGB)
-				LOAD R0, (BUTTON_PREVIOUS_CONST)
-				XOR R0, 1, R0
+				LOAD  R0, (BUTTON_PREVIOUS_CONST)
+				XOR   R0, 1, R0
 				STORE R0, (BUTTON_PREVIOUS_CONST)
 
-KRAJ_NMI		MOVE -1, R0
+KRAJ_NMI		MOVE  0, R0
 				STORE R0, (INTC_NMI_IAR)
-				STORE R0, (GPIO1_ISR)
 				STORE R0, (INTC_NMI_ISR)
-				POP R0
-				MOVE R0, SR
-				POP R0
+				MOVE  1, R0
+				STORE R0, (GPIO1_ISR)
+				
+				POP   R0
+				MOVE  R0, SR
+				POP   R0
 
 				RETN
 				
 				
 ; MAIN ##############################################################
 
-MAIN_DUMMY 		MOVE %B 10000, SR 			; GIE enable
-				MOVE 3, R0
+MAIN_DUMMY 		MOVE  %B 10000, SR 			; GIE enable
+
+				MOVE  3, R0
 				STORE R0, (INTC_NMI_MER)	; enable
 				STORE R0, (INTC_MI_MER)		; enable
-				MOVE %B 1010101, R0			; nemaskirajuci
+				
+				MOVE  %B 1010101, R0		; nemaskirajuci
 				STORE R0, (INTC_NMI_SIE)
-				MOVE %B 0100010, R0			; prekid,
+				
+				MOVE  %B 0100010, R0		; prekid,
 				STORE R0, (INTC_MI_SIE) 	; prekid
-				MOVE -1, R0
+				
+				MOVE  -1, R0
 				STORE R0, (GPIO1_GIER)		; globalni enable za
 				STORE R0, (GPIO1_IER)		; prekide
 				STORE R0, (GPIO2_GIER)		; globalni enable za
 				STORE R0, (GPIO2_IER)		; prekide
+				
+				;STORE R0, (I2C_GIE)
+				;LOAD  R1, (I2C_RX_FIFO)
+				
 				
 MAIN_LOOP		;LOAD R0, (PODATAK_DEBUG)
 				;PUSH R0
@@ -189,33 +200,38 @@ WAIT_DEBOUNCE_L	SUB R0, 1, R0
 ; PREKIDNI POTPROGRAM - MASKIRAJUCI #################################
 				
 				ORG 3000
-				PUSH R0
-				PUSH R5
-				PUSH R1
-				MOVE SR, R1
-				PUSH R1
-				
-				LOAD R0, (IRC_PREVIOUS_CONST)
-				OR R0, R0, R0
-				JR_NZ UGASI_MI
-				
-UPALI_MI		MOVE 3, R0
-				STORE R0, (IRC_PREVIOUS_CONST)
-			;	STORE R0, (GPIO0_LEDICE)
-				JR KRAJ_NMI
-
-UGASI_MI		MOVE 0, R0
-				STORE R0, (IRC_PREVIOUS_CONST)
-				;STORE R0, (GPIO0_LEDICE)
+				PUSH  R0
+				MOVE  SR, R0
+				PUSH  R0
 				
 				MOVE 1, R0
+				STORE R0, (INTC_MI_ISR)
+				
+				LOAD  R0, (IRC_PREVIOUS_CONST)
+				OR    R0, R0, R0
+				JR_NZ UGASI_INT
+				
+UPALI_INT		MOVE  3, R0
+				STORE R0, (IRC_PREVIOUS_CONST)
+				STORE R0, (GPIO0_LEDICE)
+				JR    KRAJ_INT
+
+UGASI_INT		MOVE  0, R0
+				STORE R0, (IRC_PREVIOUS_CONST)
+				MOVE  1, R0
+				STORE R0, (GPIO0_LEDICE)
+				
+KRAJ_INT		MOVE  1, R0
 				STORE R0, (GPIO2_ISR)
 				
-				POP R1 
-				MOVE R1, SR
-				POP R1
-				POP R5
-				POP R0
+				MOVE 1, R0
+				STORE R0, (INTC_MI_IAR)
+				
+				
+				POP   R0
+				MOVE  R0, SR
+				POP   R0
+				
 				RETI
 				
 ;				PUSH R0
@@ -233,6 +249,9 @@ DEBUGGER		PUSH R0					; STOGOM PRIMA JEDAN PARAMETAR
 				PUSH R1
 				MOVE SR, R0				; spremanje konteksta i SR
 				PUSH R0
+				
+				MOVE  0, R0
+				STORE R0, (GPIO1_GIER)
 				
 				LOAD R0, (SP+10)		; ispitivani podatak nalazi se u R0
 				LOAD R1, (GPIO0_LEDICE)	; pohranjivanje prethodnog stanja ledica
@@ -253,7 +272,10 @@ DEGUB_SHIFT		SHR R0, 4, R0			; shiftanje podatka (4 ledice)
 DEBUG_REPEAT	CALL DEBUG_WAIT			; kako bi jedan klik bio stvarno samo jedan klik
 				JR DEBUG_LOOP
 				
-DEBUG_IZLAZ		POP R1					; obnavljanje starog stanja ledica i RGB
+DEBUG_IZLAZ		MOVE -1, R0
+				STORE R0, (GPIO1_GIER)
+
+				POP R1					; obnavljanje starog stanja ledica i RGB
 				STORE R1, (GPIO0_RGB)	
 				POP R1
 				STORE R1, (GPIO0_LEDICE)
@@ -269,11 +291,11 @@ DEBUG_IZLAZ		POP R1					; obnavljanje starog stanja ledica i RGB
 				
 ; POTPROGRAM DEBUG_WAIT  ########################
 
-DEBUG_WAIT		PUSH R0						; spremanje konteksta
-				LOAD R0, (DEBUG_WAIT_TIME)	; vrijeme cekanja
-DEBUG_WAIT_LOOP	SUB R0, 1, R0				; gubitak vremena
+DEBUG_WAIT		PUSH  R0						; spremanje konteksta
+				LOAD  R0, (DEBUG_WAIT_TIME)		; vrijeme cekanja
+DEBUG_WAIT_LOOP	SUB   R0, 1, R0					; gubitak vremena
 				JR_NZ DEBUG_WAIT_LOOP
-				POP R0						; obnavljanje konteksta
+				POP   R0						; obnavljanje konteksta
 				RET
 				
 				
@@ -290,6 +312,4 @@ BUTTON_RELEASE_CONST	DW 1
 WAIT_DEBOUNCE_CONST		DW %D 10000
 
 IRC_DELAY_TIME 			DW %D 4000000
-
-
 
