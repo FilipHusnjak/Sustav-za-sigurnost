@@ -116,25 +116,35 @@ MAIN			MOVE 10000, SP	; inicijalizacija SP
 				MOVE SR, R0
 				PUSH R0
 				CALL WAIT_DEBOUNCE
-				LOAD R0, (GPIO1_BUTTONS)
-				OR R0, R0, R0
-				JR_Z PUSTENO_NMI			; gumb je pusten
+				LOAD R0, (GPIO1_SWITCHES)
+				AND R0, 2, R0
+				JR_Z UGASI_NMI			; gumb je pusten
 				LOAD R0, (BUTTON_RELEASE_CONST)
 				OR R0, R0, R0
 				JR_Z KRAJ_NMI				; prethodno gumb nije bio pusten
 				
-UPALI_NMI		LOAD R0, (BUTTON_PREVIOUS_CONST)
-				XOR R0, 1, R0
-				STORE R0, (BUTTON_PREVIOUS_CONST)
-				STORE R0, (GPIO0_LEDICE)
+UPALI_NMI		MOVE 2, R0
+				STORE R0, (GPIO0_RGB)
 				MOVE 0, R0
 				STORE R0, (BUTTON_RELEASE_CONST)
+				LOAD R0, (BUTTON_PREVIOUS_CONST)
+				XOR R0, 1, R0
+				STORE R0, (BUTTON_PREVIOUS_CONST)
 				JR KRAJ_NMI
 
-PUSTENO_NMI		MOVE 1, R0
+UGASI_NMI		MOVE 1, R0
 				STORE R0, (BUTTON_RELEASE_CONST)
+				MOVE 4, R0
+				STORE R0, (GPIO0_RGB)
+				LOAD R0, (BUTTON_PREVIOUS_CONST)
+				XOR R0, 1, R0
+				STORE R0, (BUTTON_PREVIOUS_CONST)
 
-KRAJ_NMI		POP R0
+KRAJ_NMI		MOVE -1, R0
+				STORE R0, (INTC_NMI_IAR)
+				STORE R0, (GPIO1_ISR)
+				STORE R0, (INTC_NMI_ISR)
+				POP R0
 				MOVE R0, SR
 				POP R0
 
@@ -143,47 +153,19 @@ KRAJ_NMI		POP R0
 				
 ; MAIN ##############################################################
 
-MAIN_DUMMY 		LOAD R5, (IRC_DELAY_TIME)	; cekanje 1 minutu na inicijalizaciju
-DELAY			SUB R5, 1, R5
-				JR_NZ DELAY
-				
-				MOVE 3, R5					; feedback
-				STORE R5, (GPIO0_RGB)
-				
-				
-INFRAC			LOAD R1, (GPIO2_INPUT)		; cekanje na IR senzor
-				AND R1, 1, R1
-				JR_Z INFRAC
-				
-				MOVE 7, R1					; feedback
-				STORE R1, (GPIO0_LEDICE)
-				
-SOUND			MOVE 1, R0					; aktiviranje zvucnika
-				STORE R0, (GPIO2_OUTPUT)
-			
-				MOVE 0FF, R1
-LOOP0			SUB R1, 1, R1
-				JP_NZ LOOP0
-			
-				MOVE 0, R0
-				STORE R0, (GPIO2_OUTPUT)
-			
-				MOVE 0FF, R1
-LOOP1			SUB R1, 1, R1
-				JP_NZ LOOP1
-	
-				JP SOUND
-
-
-;#####################
-
-				MOVE %B 10000, SR 			; GIE enable
+MAIN_DUMMY 		MOVE %B 10000, SR 			; GIE enable
 				MOVE 3, R0
 				STORE R0, (INTC_NMI_MER)	; enable
-				MOVE -1, R0					; nemaskirajuci
-				STORE R0, (INTC_NMI_SIE)	; prekid,
+				STORE R0, (INTC_MI_MER)		; enable
+				MOVE %B 1010101, R0			; nemaskirajuci
+				STORE R0, (INTC_NMI_SIE)
+				MOVE %B 0100010, R0			; prekid,
+				STORE R0, (INTC_MI_SIE) 	; prekid
+				MOVE -1, R0
 				STORE R0, (GPIO1_GIER)		; globalni enable za
 				STORE R0, (GPIO1_IER)		; prekide
+				STORE R0, (GPIO2_GIER)		; globalni enable za
+				STORE R0, (GPIO2_IER)		; prekide
 				
 MAIN_LOOP		;LOAD R0, (PODATAK_DEBUG)
 				;PUSH R0
@@ -208,12 +190,31 @@ WAIT_DEBOUNCE_L	SUB R0, 1, R0
 				
 				ORG 3000
 				PUSH R0
+				PUSH R5
+				PUSH R1
+				MOVE SR, R1
+				PUSH R1
+				
+				LOAD R0, (IRC_PREVIOUS_CONST)
+				OR R0, R0, R0
+				JR_NZ UGASI_MI
+				
+UPALI_MI		MOVE 3, R0
+				STORE R0, (IRC_PREVIOUS_CONST)
+			;	STORE R0, (GPIO0_LEDICE)
+				JR KRAJ_NMI
+
+UGASI_MI		MOVE 0, R0
+				STORE R0, (IRC_PREVIOUS_CONST)
+				;STORE R0, (GPIO0_LEDICE)
+				
 				MOVE 1, R0
-				STORE R0, (GPIO1_ISR)
-				MOVE 0FFFB, R0
-				STORE R0, (UART0_TX)
-				MOVE 3, R0
-				STORE R0, (GPIO0_LEDICE)
+				STORE R0, (GPIO2_ISR)
+				
+				POP R1 
+				MOVE R1, SR
+				POP R1
+				POP R5
 				POP R0
 				RETI
 				
@@ -281,12 +282,14 @@ DEBUG_WAIT_LOOP	SUB R0, 1, R0				; gubitak vremena
 DEBUG_WAIT_TIME 		DW %D 100000
 PODATAK_DEBUG			DW %B 01110110010101000011001000010000
 
+IRC_PREVIOUS_CONST		DW 0
+
 BUTTON_PREVIOUS_CONST	DW 0
 BUTTON_RELEASE_CONST	DW 1
 		
 WAIT_DEBOUNCE_CONST		DW %D 10000
 
-IRC_DELAY_TIME 			DW %D 40000000
+IRC_DELAY_TIME 			DW %D 4000000
 
 
 
