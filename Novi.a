@@ -117,37 +117,37 @@ MAIN			MOVE 10000, SP	; inicijalizacija SP
 
 				ORG 0C
 				
-				PUSH R0
-				MOVE SR, R0
-				PUSH R0
+				PUSH  R0
+				MOVE  SR, R0
+				PUSH  R0
 				
 				; CALL WAIT_DEBOUNCE 		; ipak nije potrebno da bi radilo ispravno
 				
-				LOAD R0, (GPIO1_ISR)		; MOVE 1, R0 ZA SWITCH			; MOVE 2, R0 ZA BUTTON
+				LOAD  R0, (GPIO1_ISR)		; MOVE 1, R0 ZA SWITCH			; MOVE 2, R0 ZA BUTTON
 				STORE R0, (GPIO1_ISR)		; NIKAD NE RADITI MOVE 3 JER TO PROGRAMSKI GENERIRA PREKID NA DRUGOM MJESTU
 				
-				AND R0, 1, R0
-SWITCH_ACT   	JR_Z GUMBI_ACT
+				AND   R0, 1, R0
+SWITCH_ACTIVE   JR_Z  BUTTONS_ACTIVE
 
-				LOAD R0, (SYSTEM_STATUS)
-				XOR R0, 1, R0
+				LOAD  R0, (SYSTEM_STATUS)
+				XOR   R0, 1, R0
 				STORE R0, (SYSTEM_STATUS)
 				
-				LOAD R0, (GPIO0_RGB)
-				XOR R0, %B 110, R0
+				LOAD  R0, (GPIO0_RGB)
+				XOR   R0, %B 110, R0
 				STORE R0, (GPIO0_RGB)
 				
-				JR NMI_END
+				JR    NMI_END
 				
-GUMBI_ACT		LOAD R0, (SYSTEM_STATUS)
-				OR R0, R0, R0
-				JR_Z NMI_END
-				LOAD R0, (GPIO0_LEDICE)
-				XOR R0, -1, R0
+BUTTONS_ACTIVE	LOAD  R0, (SYSTEM_STATUS)
+				OR    R0, R0, R0
+				JR_Z  NMI_END
+				LOAD  R0, (GPIO0_LEDICE)	; togglaj ledice
+				XOR   R0, -1, R0
 				STORE R0, (GPIO0_LEDICE)
 
 
-NMI_END			MOVE 1, R0 ; 0001 RADI AKO CISTIMO BUTTON ???
+NMI_END			MOVE  1, R0 ; 0001 RADI AKO CISTIMO BUTTON ???
 				STORE R0, (INTC_NMI_IAR)	; OBAVEZNO AKNOWLEDGE NA KRAJ!!!
 
 				POP   R0
@@ -169,71 +169,72 @@ MAIN_DUMMY 		MOVE  3, R0
 				MOVE  %B 0100110, R0		; select INT
 				STORE R0, (INTC_MI_SIE)
 				
-				MOVE 1, R0
-				ROTR R0, 1, R0
+				MOVE  1, R0
+				ROTR  R0, 1, R0
 				STORE R0, (GPIO1_GIER)		; globalno omogucavanje prekida na GPIO1
 				STORE R0, (GPIO2_GIER)		; globalno omogucavanje prekida na GPIO2
 				
-				MOVE %B 11, R0
+				MOVE  %B 11, R0
 				STORE R0, (GPIO1_IER)		; omogucavanje prekida na gumbima i switchevima
 				
-				MOVE %B 1, R0
+				MOVE  %B 1, R0
 				STORE R0, (GPIO2_IER)		; omogucavanje prekida za input port
 				
-				MOVE %B 10011, R0			; omogucavanje prekida za mikrofon
-				STORE R0, (UART0_CTRL)
+				MOVE  %B 10011, R0
+				STORE R0, (UART0_CTRL)		; omogucavanje prekida za mikrofon
 				
 				;STORE R0, (I2C_GIE)
 				;LOAD  R1, (I2C_RX_FIFO)
 				
-				MOVE %B 100, R0				; pocetno stanje sustava - ugaseno
-				STORE R0, (GPIO0_RGB)
+				MOVE  %B 100, R0
+				STORE R0, (GPIO0_RGB)		; pocetno stanje sustava - ugaseno
 				
-				MOVE  %B 00000, SR 			; GIE enable
+				MOVE  %B 00000, SR 			; GIE disable
 				
 				
-MAIN_LOOP		LOAD R0, (SYSTEM_STATUS)
-				LOAD R1, (SYSTEM_STATUS_PRETH)
-				CMP R0, R1
+MAIN_LOOP		LOAD  R0, (SYSTEM_STATUS)
+				LOAD  R1, (SYSTEM_STATUS_PRETH)
+				CMP   R0, R1
 				JR_NE MIJENJAJ_STANJE
-				LOAD R0, (SYSTEM_ALARM)
-				LOAD R1, (SYSTEM_ALARM_PRETH)
-				CMP R0, R1
+				LOAD  R0, (SYSTEM_ALARM)
+				LOAD  R1, (SYSTEM_ALARM_PRETH)
+				CMP   R0, R1
 				JR_NE MIJENJAJ_ALARM
-				JR MAIN_LOOP
+				JR    MAIN_LOOP
 
 				HALT
 				
-MIJENJAJ_STANJE MOVE 3, R0
-				STORE R0, (UART0_CTRL)
+				
+MIJENJAJ_STANJE ;MOVE  %B 11, R0						; enable prekid na mikrofonu
+				;STORE R0, (UART0_CTRL)
 
-				LOAD R0, (GPIO0_RGB)					
-				AND R0, 7, R0							
+				LOAD  R0, (GPIO0_RGB)				; brisanje stanja prve RGB lampice
+				AND   R0, %B 111, R0
 				STORE R0, (GPIO0_RGB)
 
-				MOVE 0, R0
+				MOVE  0, R0							; gasenje ledica
 				STORE R0, (GPIO0_LEDICE)
 				
-				LOAD R0, (GPIO2_ISR)					;
+				LOAD  R0, (GPIO2_ISR)				; spustanje prekida ako ga je bilo
 				STORE R0, (GPIO2_ISR)
 				
-				LOAD R0, (SYSTEM_STATUS_PRETH)
-				XOR R0, 1, R0
+				LOAD  R0, (SYSTEM_STATUS_PRETH)		; promjena stanja sustava
+				XOR   R0, 1, R0
 				STORE R0, (SYSTEM_STATUS_PRETH)
 				
-				LOAD R0, (INTC_MI_IAR)
-				AND R0, 2, R0
-				XOR R0, 2, R0
+				LOAD  R0, (INTC_MI_IAR)				; togglanje predzadnjeg bita - spustanje prekida
+				AND   R0, %B 10, R0
+				XOR   R0, %B 10, R0
 				STORE R0, (INTC_MI_IAR)
 				
-				MOVE SR, R0
-				XOR R0, 10, R0
-				MOVE R0, SR
+				MOVE  SR, R0						; togglanje GIE zastavice
+				XOR   R0, %B 10000, R0
+				MOVE  R0, SR
 				
-				JR MAIN_LOOP
+				JR    MAIN_LOOP
 
 MIJENJAJ_ALARM	
-				JR MAIN_LOOP
+				JR    MAIN_LOOP
 				
 				
 ; ####### BLUETOOTH KOD ISJECAK
@@ -258,28 +259,28 @@ MIJENJAJ_ALARM
 				MOVE  SR, R0
 				PUSH  R0
 				
-				LOAD R0, (GPIO2_ISR)
+				LOAD  R0, (GPIO2_ISR)		; spusti prekid
 				STORE R0, (GPIO2_ISR)
 				
-				LOAD R0, (GPIO2_INPUT)
-				AND R0, 1, R0
-				JR_Z ISKLJUCI_INT
+				LOAD  R0, (GPIO2_INPUT)
+				AND   R0, 1, R0
+				JR_Z  ISKLJUCI_INT
 				
-UPALI_INT		LOAD R0, (GPIO0_RGB)
-				OR R0, 8, R0
+UPALI_INT		LOAD  R0, (GPIO0_RGB)
+				OR    R0, 8, R0
 				STORE R0, (GPIO0_RGB)
-				JR KRAJ_INT
+				JR    KRAJ_INT
 				
-ISKLJUCI_INT	LOAD R0, (GPIO0_RGB)
-				;AND R0, 7, R0
-				OR R0, 10, R0
+ISKLJUCI_INT	LOAD  R0, (GPIO0_RGB)
+				;AND   R0, 7, R0
+				OR    R0, 10, R0
 				STORE R0, (GPIO0_RGB)
 				
-KRAJ_INT		MOVE 2, R0
+KRAJ_INT		MOVE  %B 010, R0
 				STORE R0, (INTC_MI_IAR)
 				
-				MOVE 3, R0
-				STORE R0, (UART0_CTRL)
+				;MOVE  %B 011, R0
+				;STORE R0, (UART0_CTRL)
 				
 				POP   R0
 				MOVE  R0, SR
@@ -294,56 +295,55 @@ KRAJ_INT		MOVE 2, R0
 				
 ; POTPROGRAM WAIT_DEBOUNCE ##########################################
 
-WAIT_DEBOUNCE	PUSH R0
-				LOAD R0, (WAIT_DEBOUNCE_CONST)
-WAIT_DEBOUNCE_L	SUB R0, 1, R0
+WAIT_DEBOUNCE	PUSH  R0
+				LOAD  R0, (WAIT_DEBOUNCE_CONST)
+WAIT_DEBOUNCE_L	SUB   R0, 1, R0
 				JR_NZ WAIT_DEBOUNCE_L
-				POP R0
+				POP   R0
 				RET
 				
 				
 ; POTPROGRAM DEBUGGER ###############################################
 
-DEBUGGER		PUSH R0					; STOGOM PRIMA JEDAN PARAMETAR
-				PUSH R1
-				MOVE SR, R0				; spremanje konteksta i SR
-				PUSH R0
+DEBUGGER		PUSH  R0					; STOGOM PRIMA JEDAN PARAMETAR
+				PUSH  R1
+				MOVE  SR, R0				; spremanje konteksta i SR
+				PUSH  R0
 				
 				MOVE  0, R0
 				STORE R0, (GPIO1_GIER)
 				
-				LOAD R0, (SP+10)		; ispitivani podatak nalazi se u R0
-				LOAD R1, (GPIO0_LEDICE)	; pohranjivanje prethodnog stanja ledica
-				PUSH R1
-				LOAD R1, (GPIO0_RGB)	; pohranjivanje prethodnog stanja RGB
-				PUSH R1
+				LOAD  R0, (SP+10)		; ispitivani podatak nalazi se u R0
+				LOAD  R1, (GPIO0_LEDICE)	; pohranjivanje prethodnog stanja ledica
+				PUSH  R1
+				LOAD  R1, (GPIO0_RGB)	; pohranjivanje prethodnog stanja RGB
+				PUSH  R1
 				
-				MOVE %B 100001, R1
-				STORE R1, (GPIO0_RGB)	; feedback korisniku
+				MOVE  %B 100001, R1
+				STORE R1, (GPIO0_RGB)		; feedback korisniku
 				
 DEBUG_LOOP		STORE R0, (GPIO0_LEDICE)
-				LOAD R1, (GPIO1_BUTTONS)
-				CMP R1, %B 0001			; BTN0 za prekid debugga
+				LOAD  R1, (GPIO1_BUTTONS)
+				CMP   R1, %B 0001			; BTN0 za prekid debugga
 				JR_EQ DEBUG_IZLAZ
-				CMP R1, %B 0010			; BTN1 za shiftanje podatka
+				CMP   R1, %B 0010			; BTN1 za shiftanje podatka
 				JR_NE DEBUG_REPEAT
-DEGUB_SHIFT		SHR R0, 4, R0			; shiftanje podatka (4 ledice)
-DEBUG_REPEAT	CALL DEBUG_WAIT			; kako bi jedan klik bio stvarno samo jedan klik
-				JR DEBUG_LOOP
+DEGUB_SHIFT		SHR   R0, 4, R0				; shiftanje podatka (4 ledice)
+DEBUG_REPEAT	CALL  DEBUG_WAIT			; kako bi jedan klik bio stvarno samo jedan klik
+				JR    DEBUG_LOOP
 				
-DEBUG_IZLAZ		MOVE -1, R0
+DEBUG_IZLAZ		MOVE  -1, R0
 				STORE R0, (GPIO1_GIER)
 
-				POP R1					; obnavljanje starog stanja ledica i RGB
+				POP   R1					; obnavljanje starog stanja ledica i RGB
 				STORE R1, (GPIO0_RGB)	 
-				POP R1
+				POP   R1
 				STORE R1, (GPIO0_LEDICE)
 				
-				POP R1					; obnavljanje konteksta i SR
-				MOVE R1, SR
-				
-				POP R1
-				POP R0
+				POP   R1					; obnavljanje konteksta i SR
+				MOVE  R1, SR
+				POP   R1
+				POP   R0
 				
 				RET
 				
