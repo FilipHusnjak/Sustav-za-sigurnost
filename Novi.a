@@ -1,0 +1,255 @@
+;;-----------------------------------------------------------------------------------------
+;;	FRISC-PYNQ-SYSTEM
+;;	
+;;	Sve informacije o nacinima spajanja i definicijama ulazno/izlaznih jedinica mozete 
+;;	procitati u dokumentu:
+;;		/PYNQ-LAB-STARTER/docs/PYNQ-FRISC-SYSTEM.pdf
+;;
+;;	Sve informacije o programiranju i konfiguriranju PYNQ plocice mozete procitati u dokumentu:
+;;		/PYNQ-LAB-STARTER/docs/Upute-za-programiranje.pdf
+;;
+;;	Ovaj predlozak ima predefinirani skup memorijskih adresa UI jedinica.
+;;	UI jedinice koje su postavljene u sustavu:
+;; 		- 4 ledice i 2 RGB ledice
+;;		- 4 dugmica i 2 prekidaca
+;;		- 2 x 8bit GPIO (jedan ulazni i jedan izlazni)
+;; 		- 2 x UART kontrolera (za bluetooth ili seriju)
+;; 		- Kontroler za I2C
+;;		- Kontroler za SPI
+;;		- 12-bitni A/D pretvornik
+;;
+;;	Za sva pitanja mozete se obratiti na:
+;;		alen.duspara@fer.hr
+;;		tomislav.bicanic@fer.hr
+;;		marko.pacadi@fer.hr
+;; 		luka.macan@fer.hr
+;;
+;;-----------------------------------------------------------------------------------------
+
+;; Adrese ulazno/izlaznih jedinica	
+GPIO0_LEDICE    EQU	0FFF80000
+GPIO0_RGB 	    EQU	0FFF80008
+
+GPIO1_SWITCHES  EQU	0FFF81000
+GPIO1_BUTTONS   EQU	0FFF81008
+GPIO1_ISR	    EQU	0FFF81120
+GPIO1_GIER	    EQU	0FFF8111C
+GPIO1_IER	    EQU	0FFF81128
+
+GPIO2_INPUT		EQU	0FFF82000
+GPIO2_OUTPUT	EQU	0FFF82008
+GPIO2_ISR	    EQU	0FFF82120
+GPIO2_GIER	    EQU	0FFF8211C
+GPIO2_IER	    EQU	0FFF82128
+
+UART0_RX	    EQU 0FFF83000
+UART0_TX	    EQU 0FFF83004
+UART0_STAT	    EQU 0FFF83008
+UART0_CTRL	    EQU 0FFF8300C
+
+UART1_RX	    EQU 0FFF84000
+UART1_TX	    EQU 0FFF84004
+UART1_STAT	    EQU 0FFF84008
+UART1_CTRL	    EQU 0FFF8400C
+
+I2C_GIE			EQU 0FFF8501C 	; I2C global interrupt enable register
+I2C_ISR			EQU 0FFF85020 	; I2C interrupt status register
+I2C_IER			EQU 0FFF85028 	; I2C interrupt enable register
+I2C_CR			EQU 0FFF85100 	; I2C control register
+I2C_SR			EQU 0FFF85104 	; I2C status register
+I2C_TX_FIFO		EQU 0FFF85108 	; I2C transmit FIFO
+I2C_RX_FIFO	 	EQU 0FFF8510C 	; I2C recieve FIFO
+I2C_SA			EQU 0FFF85110 	; I2C slave adress register (adresa na kojoj ce se odazivati - slave mode)
+I2C_TX_FIFO_OCY EQU 0FFF85114 	; I2C transmit FIFO occupancy 0 = 1 podatak, 1 = 2 podatka...
+I2C_RX_FIFO_OCY	EQU 0FFF85118 	; I2C recieve FIFO occupancy 0 = 1 podatak, 1 = 2 podatka...
+I2C_RX_FIFO_PIR	EQU 0FFF85120 	; I2C RX FIFO - nakon koliko podataka ce se napraviti interrupt, ondosno max velicina RX_FIFO-a
+
+SPI_CR			EQU 0FFF86060 	; SPI control register
+SPI_SR			EQU 0FFF86064 	; SPI status register
+SPI_DTR			EQU 0FFF86068 	; SPI data transmit register
+SPI_DRR			EQU 0FFF8606C 	; SPI data receive register
+SPI_SSR			EQU 0FFF86070 	; SPI Slave select register
+SPI_GIER		EQU 0FFF8601C 	; SPI global interrupt enable register
+SPI_IER			EQU 0FFF86028 	; SPI interrupt enable register
+SPI_ISR			EQU 0FFF86020 	; SPI interrupt status register
+
+TIMER0_CSR		EQU	0FFF87000 	; Timer 0 Control and Status Register
+TIMER0_LR		EQU	0FFF87004 	; Timer 0 Load Register
+TIMER0_CR		EQU	0FFF87008 	; Timer 0 Counter Register
+TIMER1_CSR		EQU	0FFF87010 	; Timer 1 Control and Status Register
+TIMER1_LR		EQU	0FFF87014 	; Timer 1 Load Register
+TIMER1_CR		EQU	0FFF87018 	; Timer 1 Counter Register
+
+INTC_NMI_ISR	EQU 0FFF88000   ; Interrupt status register
+INTC_NMI_IAR	EQU 0FFF8800C   ; Interrupt aknowledge register
+INTC_NMI_SIE	EQU 0FFF88010   ; Set interrupt enable
+INTC_NMI_CIE	EQU 0FFF88014   ; Clear interrupt enable
+INTC_NMI_MER	EQU 0FFF8801C   ; Master enable register
+
+INTC_MI_ISR		EQU 0FFF89000	; Interrupt status register
+INTC_MI_IAR		EQU 0FFF8900C	; Interrupt aknowledge register
+INTC_MI_SIE		EQU 0FFF89010	; Set interrupt enable
+INTC_MI_CIE		EQU 0FFF89014	; Clear interrupt enable
+INTC_MI_MER		EQU 0FFF8901C	; Master enable register
+
+ADC_A0			EQU	0FFF8A244	; Vrijednost A/D pretvorbe na ulazu A0
+
+
+; PROGRAMSKI KOD ZA "SUSTAV ZA SIGURNOST" ###########################
+
+				ORG 0
+MAIN			MOVE 10000, SP	; inicijalizacija SP
+				JR MAIN_DUMMY	; skok u glavni program
+				
+				
+; PREKIDNI POTPROGRAM - NEMASKIRAJUCI ###############################
+
+				ORG 0C
+
+				PUSH R0
+				MOVE SR, R0
+				PUSH R0
+				
+				LOAD R0, (GPIO1_ISR)				
+				
+				;MOVE 2, R0  ; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+				;MOVE 1 ZA SWITCH
+				;MOVE 2 ZA BUTTON
+				STORE R0, (GPIO1_ISR)
+				
+				MOVE 1, R0 ; 0001 RADI AKO CISTIMO BUTTON ???
+				STORE R0, (INTC_NMI_IAR)
+				;STORE R0, (INTC_NMI_ISR)
+				;INTC_NMI_??? REGISTRI!!!
+				
+				CALL WAIT_DEBOUNCE
+				LOAD R0, (GPIO0_LEDICE)
+				XOR  R0, -1, R0
+				STORE R0, (GPIO0_LEDICE)
+				
+				POP   R0
+				MOVE  R0, SR
+				POP   R0
+
+				RETN
+				
+				
+; MAIN ##############################################################
+
+MAIN_DUMMY 		MOVE  %B 10000, SR 			; GIE enable
+
+				MOVE  3, R0
+				STORE R0, (INTC_NMI_MER)	; enable
+				;STORE R0, (INTC_MI_MER)		; enable
+				
+				MOVE 1, R0 ;MOVE  %B 1010101, R0		; nemaskirajuci
+				STORE R0, (INTC_NMI_SIE)
+				
+				;MOVE  %B 0100010, R0		; prekid,
+				;STORE R0, (INTC_MI_SIE) 	; prekid
+				
+				MOVE 1, R0
+				ROTR R0, 1, R0
+				STORE R0, (GPIO1_GIER)		; globalni enable za
+				
+				MOVE -1, R0
+				STORE R0, (GPIO1_IER)		; prekide
+				;STORE R0, (GPIO2_GIER)		; globalni enable za
+				;STORE R0, (GPIO2_IER)		; prekide
+				
+				MOVE %B 0101, R0
+				STORE R0, (GPIO0_LEDICE)
+				
+				;STORE R0, (I2C_GIE)
+				;LOAD  R1, (I2C_RX_FIFO)
+				
+				
+MAIN_LOOP		;LOAD R0, (PODATAK_DEBUG)
+				;PUSH R0
+				;CALL DEBUGGER
+				;ADD SP, 4, SP
+
+				JR MAIN_LOOP
+				HALT
+				
+				
+; POTPROGRAM WAIT_DEBOUNCE ##########################################
+
+WAIT_DEBOUNCE	PUSH R0
+				LOAD R0, (WAIT_DEBOUNCE_CONST)
+WAIT_DEBOUNCE_L	SUB R0, 1, R0
+				JR_NZ WAIT_DEBOUNCE_L
+				POP R0
+				RET
+				
+				
+; POTPROGRAM DEBUGGER ###############################################
+
+DEBUGGER		PUSH R0					; STOGOM PRIMA JEDAN PARAMETAR
+				PUSH R1
+				MOVE SR, R0				; spremanje konteksta i SR
+				PUSH R0
+				
+				MOVE  0, R0
+				STORE R0, (GPIO1_GIER)
+				
+				LOAD R0, (SP+10)		; ispitivani podatak nalazi se u R0
+				LOAD R1, (GPIO0_LEDICE)	; pohranjivanje prethodnog stanja ledica
+				PUSH R1
+				LOAD R1, (GPIO0_RGB)	; pohranjivanje prethodnog stanja RGB
+				PUSH R1
+				
+				MOVE %B 100001, R1
+				STORE R1, (GPIO0_RGB)	; feedback korisniku
+				
+DEBUG_LOOP		STORE R0, (GPIO0_LEDICE)
+				LOAD R1, (GPIO1_BUTTONS)
+				CMP R1, %B 0001			; BTN0 za prekid debugga
+				JR_EQ DEBUG_IZLAZ
+				CMP R1, %B 0010			; BTN1 za shiftanje podatka
+				JR_NE DEBUG_REPEAT
+DEGUB_SHIFT		SHR R0, 4, R0			; shiftanje podatka (4 ledice)
+DEBUG_REPEAT	CALL DEBUG_WAIT			; kako bi jedan klik bio stvarno samo jedan klik
+				JR DEBUG_LOOP
+				
+DEBUG_IZLAZ		MOVE -1, R0
+				STORE R0, (GPIO1_GIER)
+
+				POP R1					; obnavljanje starog stanja ledica i RGB
+				STORE R1, (GPIO0_RGB)	
+				POP R1
+				STORE R1, (GPIO0_LEDICE)
+				
+				POP R1					; obnavljanje konteksta i SR
+				MOVE R1, SR
+				
+				POP R1
+				POP R0
+				
+				RET
+				
+				
+; POTPROGRAM DEBUG_WAIT  ########################
+
+DEBUG_WAIT		PUSH  R0						; spremanje konteksta
+				LOAD  R0, (DEBUG_WAIT_TIME)		; vrijeme cekanja
+DEBUG_WAIT_LOOP	SUB   R0, 1, R0					; gubitak vremena
+				JR_NZ DEBUG_WAIT_LOOP
+				POP   R0						; obnavljanje konteksta
+				RET
+				
+				
+; PODATCI U MEMORIJI ################################################
+
+DEBUG_WAIT_TIME 		DW %D 100000
+PODATAK_DEBUG			DW %B 01110110010101000011001000010000
+
+IRC_PREVIOUS_CONST		DW 0
+
+BUTTON_PREVIOUS_CONST	DW 0
+BUTTON_RELEASE_CONST	DW 1
+		
+WAIT_DEBOUNCE_CONST		DW %D 10000
+
+IRC_DELAY_TIME 			DW %D 4000000
+
