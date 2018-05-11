@@ -139,7 +139,10 @@ SWITCH_ACT   	JR_Z GUMBI_ACT
 				
 				JR NMI_END
 				
-GUMBI_ACT		LOAD R0, (GPIO0_LEDICE)
+GUMBI_ACT		LOAD R0, (SYSTEM_STATUS)
+				OR R0, R0, R0
+				JR_Z NMI_END
+				LOAD R0, (GPIO0_LEDICE)
 				XOR R0, -1, R0
 				STORE R0, (GPIO0_LEDICE)
 
@@ -160,16 +163,16 @@ MAIN_DUMMY 		MOVE  3, R0
 				STORE R0, (INTC_NMI_MER)	; globalno omogucavanje NMI na kontroleru
 				STORE R0, (INTC_MI_MER)		; globalno omogucavanje INT na kontroleru
 				
-				MOVE  %B 1010101, R0		; select NMI 
+				MOVE  %B 1011001, R0		; select NMI 
 				STORE R0, (INTC_NMI_SIE)
 				
-				MOVE  %B 0100010, R0		; select INT
+				MOVE  %B 0100110, R0		; select INT
 				STORE R0, (INTC_MI_SIE)
 				
 				MOVE 1, R0
 				ROTR R0, 1, R0
 				STORE R0, (GPIO1_GIER)		; globalno omogucavanje prekida na GPIO1
-				STORE R0, (GPIO2_GIER)		; globalno omogucavanje prekida na GPIO2 ??????????????????????????????????????????????????????????
+				STORE R0, (GPIO2_GIER)		; globalno omogucavanje prekida na GPIO2
 				
 				MOVE %B 11, R0
 				STORE R0, (GPIO1_IER)		; omogucavanje prekida na gumbima i switchevima
@@ -177,18 +180,60 @@ MAIN_DUMMY 		MOVE  3, R0
 				MOVE %B 1, R0
 				STORE R0, (GPIO2_IER)		; omogucavanje prekida za input port
 				
+				MOVE %B 10011, R0			; omogucavanje prekida za mikrofon
+				STORE R0, (UART0_CTRL)
+				
 				;STORE R0, (I2C_GIE)
 				;LOAD  R1, (I2C_RX_FIFO)
 				
 				MOVE %B 100, R0				; pocetno stanje sustava - ugaseno
 				STORE R0, (GPIO0_RGB)
 				
-				MOVE  %B 10000, SR 			; GIE enable
+				MOVE  %B 00000, SR 			; GIE enable
 				
 				
-MAIN_LOOP		JR MAIN_LOOP
+MAIN_LOOP		LOAD R0, (SYSTEM_STATUS)
+				LOAD R1, (SYSTEM_STATUS_PRETH)
+				CMP R0, R1
+				JR_NE MIJENJAJ_STANJE
+				LOAD R0, (SYSTEM_ALARM)
+				LOAD R1, (SYSTEM_ALARM_PRETH)
+				CMP R0, R1
+				JR_NE MIJENJAJ_ALARM
+				JR MAIN_LOOP
 
 				HALT
+				
+MIJENJAJ_STANJE MOVE 3, R0
+				STORE R0, (UART0_CTRL)
+
+				LOAD R0, (GPIO0_RGB)					
+				AND R0, 7, R0							
+				STORE R0, (GPIO0_RGB)
+
+				MOVE 0, R0
+				STORE R0, (GPIO0_LEDICE)
+				
+				LOAD R0, (GPIO2_ISR)					;
+				STORE R0, (GPIO2_ISR)
+				
+				LOAD R0, (SYSTEM_STATUS_PRETH)
+				XOR R0, 1, R0
+				STORE R0, (SYSTEM_STATUS_PRETH)
+				
+				LOAD R0, (INTC_MI_IAR)
+				AND R0, 2, R0
+				XOR R0, 2, R0
+				STORE R0, (INTC_MI_IAR)
+				
+				MOVE SR, R0
+				XOR R0, 10, R0
+				MOVE R0, SR
+				
+				JR MAIN_LOOP
+
+MIJENJAJ_ALARM	
+				JR MAIN_LOOP
 				
 				
 ; ####### BLUETOOTH KOD ISJECAK
@@ -213,33 +258,28 @@ MAIN_LOOP		JR MAIN_LOOP
 				MOVE  SR, R0
 				PUSH  R0
 				
-				
-				
-				MOVE 1, R0
-				STORE R0, (INTC_MI_ISR)
-				
 				LOAD R0, (GPIO2_ISR)
 				STORE R0, (GPIO2_ISR)
 				
-				;LOAD  R0, (IRC_PREVIOUS_CONST)
-				;OR    R0, R0, R0
-				;JR_NZ UGASI_INT
+				LOAD R0, (GPIO2_INPUT)
+				AND R0, 1, R0
+				JR_Z ISKLJUCI_INT
 				
 UPALI_INT		LOAD R0, (GPIO0_RGB)
 				OR R0, 8, R0
-				;STORE R0, (IRC_PREVIOUS_CONST)
 				STORE R0, (GPIO0_RGB)
-				JR    KRAJ_INT
-
-UGASI_INT		MOVE  0, R0
-				STORE R0, (IRC_PREVIOUS_CONST)
-				MOVE  1, R0
-				STORE R0, (GPIO0_LEDICE)
+				JR KRAJ_INT
+				
+ISKLJUCI_INT	LOAD R0, (GPIO0_RGB)
+				;AND R0, 7, R0
+				OR R0, 10, R0
+				STORE R0, (GPIO0_RGB)
 				
 KRAJ_INT		MOVE 2, R0
 				STORE R0, (INTC_MI_IAR)
 				
-				CALL WAIT_DEBOUNCE
+				MOVE 3, R0
+				STORE R0, (UART0_CTRL)
 				
 				POP   R0
 				MOVE  R0, SR
@@ -321,14 +361,15 @@ DEBUG_WAIT_LOOP	SUB   R0, 1, R0					; gubitak vremena
 ; PODATCI U MEMORIJI ################################################
 
 DEBUG_WAIT_TIME 		DW %D 100000
-
-IRC_PREVIOUS_CONST		DW 0
-
-BUTTON_PREVIOUS_CONST	DW 0
-BUTTON_RELEASE_CONST	DW 1
 		
 WAIT_DEBOUNCE_CONST		DW %D 20000
 
-IRC_DELAY_TIME 			DW %D 4000000
-
 SYSTEM_STATUS 			DW 0
+
+SYSTEM_STATUS_PRETH		DW 0
+
+SYSTEM_ALARM			DW 0
+
+SYSTEM_ALARM_PRETH		DW 0
+
+
