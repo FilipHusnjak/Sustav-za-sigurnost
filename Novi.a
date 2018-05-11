@@ -216,7 +216,7 @@ DEBUG_IZLAZ		MOVE -1, R0
 				STORE R0, (GPIO1_GIER)
 
 				POP R1					; obnavljanje starog stanja ledica i RGB
-				STORE R1, (GPIO0_RGB)	
+				STORE R1, (GPIO0_RGB)	 
 				POP R1
 				STORE R1, (GPIO0_LEDICE)
 				
