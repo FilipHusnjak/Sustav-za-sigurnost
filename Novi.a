@@ -268,20 +268,18 @@ MIJENJAJ_ALARM
 				JR_Z  ISKLJUCI_INT
 				
 UPALI_INT		LOAD  R0, (GPIO0_RGB)
-				OR    R0, 8, R0
+				AND    R0, 7, R0
+				OR R0, 8, R0
 				STORE R0, (GPIO0_RGB)
 				JR    KRAJ_INT
 				
 ISKLJUCI_INT	LOAD  R0, (GPIO0_RGB)
-				;AND   R0, 7, R0
+				AND   R0, 7, R0
 				OR    R0, 10, R0
 				STORE R0, (GPIO0_RGB)
 				
 KRAJ_INT		MOVE  %B 010, R0
 				STORE R0, (INTC_MI_IAR)
-				
-				;MOVE  %B 011, R0
-				;STORE R0, (UART0_CTRL)
 				
 				POP   R0
 				MOVE  R0, SR
