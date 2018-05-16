@@ -117,94 +117,194 @@ MAIN			MOVE 10000, SP	; inicijalizacija SP
 
 				ORG 0C
 				
-				PUSH  R0
+				PUSH  R0					; spremanje konteksta
 				PUSH  R1
 				MOVE  SR, R0
 				PUSH  R0
 				
-				LOAD  R0, (GPIO1_ISR)		; MOVE 1, R0 ZA SWITCH			; MOVE 2, R0 ZA BUTTON
+				LOAD  R0, (GPIO1_ISR)
+				OR	  R0, R0, R0
+				JR_NZ NMI_GPIO1
+				
+				LOAD  R0, (TIMER0_CSR)		; testiraj je li timer izazvao NMI
+				AND   R0, %B 000100000000, R0
+				JR_NZ NMI_TIMER
+				
+				POP   R0					; nije bio ni timer ni GPIO1
+				MOVE  R0, SR
+				POP   R1
+				POP   R0
+				
+				RETN
+				
+
+NMI_TIMER		LOAD  R0, (TIMER0_CSR)				; clear interrupt
+				OR    R0, %B 0100000000, R0
+				STORE R0, (TIMER0_CSR)
+				
+				LOAD  R0, (GPIO2_OUTPUT)			; toggle zvucnik
+				XOR   R0, 1, R0
+				STORE R0, (GPIO2_OUTPUT)
+				
+				LOAD  R0, (ALARM_NOF_FLASHES)					; RESETIRATI NA 0 !!!!!
+				ADD   R0, 1, R0
+				STORE R0, (ALARM_NOF_FLASHES)
+				
+				LOAD  R1, (ALARM_NOF_FLASHES_MAX)
+				CMP   R0, R1								
+				JR_EQ SET_ALARM_OFF
+				
+				LOAD  R0, (GPIO0_RGB)				; pali ili gasi crvenu lampicu?
+				AND   R0, %B 111000, R0
+				JR_NZ RGB_RED_WAS_ON
+				
+RGB_RED_WAS_OFF	LOAD  R0, (GPIO0_RGB)				; upali crvenu lampicu, ne diraj drugu
+				OR    R0, %B 100000, R0
+				STORE R0, (GPIO0_RGB)
+				JR    END_NMI_TIMER
+				
+RGB_RED_WAS_ON	LOAD  R0, (GPIO0_RGB)				; ugasi crvenu lampicu, ne diraj drugu
+				AND   R0, %B 000111, R0
+				STORE R0 (GPIO0_RGB)
+				JR    END_NMI_TIMER
+
+SET_ALARM_OFF	LOAD  R0, (TIMER0_CSR)				; zaustavi timer
+				AND   R0, %B 111101011111, R0
+				STORE R0, (TIMER0_CSR)
+				
+				LOAD  R0, (GPIO0_RGB)				; ugasi crvenu lampicu, ne diraj drugu
+				AND   R0, %B 000111, R0
+				STORE R0, (GPIO0_RGB)
+				
+				MOVE  0, R0
+				STORE R0, (GPIO2_OUTPUT)			; ugasi zvucnik
+				STORE R0, (ALARM_NOF_FLASHES)		; resetiraj broj flasheva lampice
+				JR 	  END_NMI_TIMER
+				
+END_NMI_TIMER	MOVE  %B 01000000, R0				; MOVE 40, R0   CISTI TIMER !!!
+				STORE R0, (INTC_NMI_IAR)
+				JR    NMI_FULL_KRAJ
+				
+				
+NMI_GPIO1		LOAD  R0, (GPIO1_ISR)		; MOVE 1, R0 ZA SWITCH			; MOVE 2, R0 ZA BUTTON
 				STORE R0, (GPIO1_ISR)		; NIKAD NE RADITI MOVE 3 JER TO PROGRAMSKI GENERIRA PREKID NA DRUGOM MJESTU
 				AND   R0, 1, R0
 				JR_Z  BUTTONS_ACTIVE
 				
 SWITCH_ACTIVE	LOAD  R0, (SYSTEM_STATUS)
-				OR R0, R0, R0
-				JR_Z UPALI
+				OR    R0, R0, R0
+				JR_Z  NMI_UPALI_SUST
 
-UGASI			MOVE 0, R0
+NMI_UGASI_SUST	MOVE  0, R0
 				STORE R0, (SYSTEM_STATUS)
 				STORE R0, (SYSTEM_ALARM)
 				STORE R0, (GPIO0_LEDICE)
-				MOVE %B 100, R0
+				MOVE  %B 100, R0
 				STORE R0, (GPIO0_RGB)
 
+				MOVE  0, R0							; resetirati broj flasheva
+				STORE R0, (ALARM_NOF_FLASHES)
+				
+				LOAD  R0, (TIMER0_CSR)				; zaustavi timer
+				AND   R0, %B 111101011111, R0
+				STORE R0, (TIMER0_CSR)
+				
+				LOAD  R0, (GPIO0_RGB)				; ugasi crvenu lampicu, ne diraj drugu
+				AND   R0, %B 000111, R0
+				STORE R0, (GPIO0_RGB)
+				
+				MOVE  0, R0
+				STORE R0, (GPIO2_OUTPUT)			; ugasi zvucnik
+				STORE R0, (ALARM_NOF_FLASHES)		; resetiraj broj flasheva lampice
+				
 				MOVE  1, R0 
 				STORE R0, (INTC_NMI_IAR)
 				
-				POP R0
-				AND R0, 0F, R0
-				MOVE R0, SR
-				POP R1
-				POP R0
+				POP   R0
+				AND   R0, %B 01111, R0
+				MOVE  R0, SR
+				
+				POP   R1
+				POP   R0
+				
 				RETN
 				
 				
-UPALI			LOAD R0, (GPIO2_ISR)
+NMI_UPALI_SUST	LOAD  R0, (GPIO2_ISR)
 				STORE R0, (GPIO2_ISR)
 				
-				MOVE 2, R0
+				MOVE  2, R0
 				STORE R0, (INTC_MI_IAR)
 				
-				MOVE -1, R0
+				MOVE  -1, R0
 				STORE R0, (GPIO2_GIER)
 
-				MOVE 1, R0
+				MOVE  1, R0
 				STORE R0, (SYSTEM_STATUS)
-				MOVE %B 010, R0
+				MOVE  %B 010, R0
 				STORE R0, (GPIO0_RGB)
+				
+				MOVE  0, R0						; resetirati broj flasheva
+				STORE R0, (ALARM_NOF_FLASHES)
 				
 				MOVE  1, R0
 				STORE R0, (INTC_NMI_IAR)
 				
-				POP R0
-				OR R0, %B 10000, R0
-				MOVE R0, SR
-				POP R1
-				POP R0
-				RETN
+				POP   R0
+				OR    R0, %B 10000, R0
+				MOVE  R0, SR
 				
+				POP   R1
+				POP   R0
+				
+				RETN
 				
 				
 BUTTONS_ACTIVE	LOAD  R0, (SYSTEM_STATUS)
 				OR    R0, R0, R0
 				JR_Z  NMI_END
 				
-				LOAD R0, (GPIO1_BUTTONS)
-				OR R0, R0, R0
-				JR_Z NMI_END
+				LOAD  R0, (GPIO1_BUTTONS)
+				OR    R0, R0, R0
+				JR_Z  NMI_END
 	
 				LOAD  R0, (SYSTEM_ALARM)	
-				OR R0, R0, R0
-				JR_Z NMI_END
+				OR    R0, R0, R0
+				JR_Z  NMI_END
 				
-				MOVE -1, R0
+				MOVE  0, R0							; resetirati broj flasheva
+				STORE R0, (ALARM_NOF_FLASHES)
+				
+				LOAD  R0, (TIMER0_CSR)				; zaustavi timer
+				AND   R0, %B 111101011111, R0
+				STORE R0, (TIMER0_CSR)
+				
+				LOAD  R0, (GPIO0_RGB)				; ugasi crvenu lampicu, ne diraj drugu
+				AND   R0, %B 000111, R0
+				STORE R0, (GPIO0_RGB)
+				
+				MOVE  0, R0
+				STORE R0, (GPIO2_OUTPUT)			; ugasi zvucnik
+				STORE R0, (ALARM_NOF_FLASHES)		; resetiraj broj flasheva lampice
+				
+				MOVE  -1, R0
 				STORE R0, (GPIO2_GIER)
 				
-				LOAD R0, (GPIO2_ISR)
+				LOAD  R0, (GPIO2_ISR)
 				STORE R0, (GPIO2_ISR)
 				
-				MOVE 2, R0
+				MOVE  2, R0
 				STORE R0, (INTC_MI_IAR)
 				
-				MOVE 0, R0
+				MOVE  0, R0
 				STORE R0, (GPIO0_LEDICE)
 				STORE R0, (SYSTEM_ALARM)
 
 
-NMI_END			MOVE  1, R0 ; 0001 RADI AKO CISTIMO BUTTON ???
+NMI_END			MOVE  1, R0 	; 0001 RADI AKO CISTIMO BUTTON ???
 				STORE R0, (INTC_NMI_IAR)	; OBAVEZNO AKNOWLEDGE NA KRAJ!!!
 
-				POP   R0
+NMI_FULL_KRAJ	POP   R0					; restauriraj kontekst
 				MOVE  R0, SR
 				POP   R1
 				POP   R0
@@ -218,10 +318,10 @@ MAIN_DUMMY 		MOVE  3, R0
 				STORE R0, (INTC_NMI_MER)	; globalno omogucavanje NMI na kontroleru
 				STORE R0, (INTC_MI_MER)		; globalno omogucavanje INT na kontroleru
 				
-				MOVE  %B 1000001, R0		; select NMI 
+				MOVE  %B 1000001, R0		; select NMI - timer + GPIO1
 				STORE R0, (INTC_NMI_SIE)
 				
-				MOVE  %B 0000010, R0		; select INT
+				MOVE  %B 0000010, R0		; select INT - GPIO2
 				STORE R0, (INTC_MI_SIE)
 				
 				MOVE  1, R0
@@ -232,8 +332,13 @@ MAIN_DUMMY 		MOVE  3, R0
 				MOVE  %B 11, R0
 				STORE R0, (GPIO1_IER)		; omogucavanje prekida na gumbima i switchevima
 				
-				MOVE  %B 11,R0
+				MOVE  %B 01,R0
 				STORE R0, (GPIO2_IER)		; omogucavanje prekida za input port
+				
+				LOAD  R0, (ALARM_FLASH_CONST)	; priprema timera
+				STORE R0, (TIMER0_LR)
+				MOVE  %B 000101110010, R0		; punjenje i konfiguriranje
+				STORE R0, (TIMER0_CSR)
 				
 				MOVE  %B 100, R0
 				STORE R0, (GPIO0_RGB)		; pocetno stanje sustava - ugaseno
@@ -245,54 +350,40 @@ MAIN_LOOP		JR    MAIN_LOOP
 
 				HALT
 				
-				
-				
-				
-; ####### BLUETOOTH KOD ISJECAK
-				
-; #######
-				
 
 ; PREKIDNI POTPROGRAM - MASKIRAJUCI #################################
 				
 				ORG 3000
 				
-				PUSH  R0
-				PUSH  R1
-				PUSH  R2
-				PUSH  R3
-				PUSH  R4
+				PUSH  R0					; spremi kontekst
 				MOVE  SR, R0
 				PUSH  R0
 				
 				LOAD  R0, (GPIO2_ISR)		; spusti prekid
 				STORE R0, (GPIO2_ISR)
 				
-				CALL WAIT_DEBOUNCE
+				; CALL  WAIT_DEBOUNCE
 				
-				LOAD  R0, (GPIO2_INPUT)
+				LOAD  R0, (GPIO2_INPUT)		; testiraj je li prekid generiran zbog 0->1
 				AND   R0, %B 11, R0
-				
 				JR_Z  KRAJ_INT
 				
-				
-				MOVE 1, R0
-				STORE R0, (SYSTEM_ALARM)
-				MOVE %B 1111, R0
-				STORE R0, (GPIO0_LEDICE)
-				MOVE 0, R0
+				MOVE  0, R0					; disable GPIO2 interrupt
 				STORE R0, (GPIO2_GIER)
 				
+				MOVE  1, R0					; postavi alarm
+				STORE R0, (SYSTEM_ALARM)
+
+				LOAD  R0, (TIMER0_CSR)		; rutina za aktivaciju timera
+				AND   R0, %B 111101011111, R0
+				OR    R0, %B 000010000000, R0
+				STORE R0, (TIMER0_CSR)
 				
-KRAJ_INT		MOVE  2, R0				;BILO 2
+KRAJ_INT		MOVE  2, R0					; acknowledge prekida
 				STORE R0, (INTC_MI_IAR)
 				
-				POP   R0
+				POP   R0					; restauriraj kontekst
 				MOVE  R0, SR
-				POP   R4
-				POP   R3
-				POP   R2
-				POP   R1
 				POP   R0
 				
 				RETI
@@ -318,10 +409,10 @@ DEBUGGER		PUSH  R0					; STOGOM PRIMA JEDAN PARAMETAR
 				MOVE  0, R0
 				STORE R0, (GPIO1_GIER)
 				
-				LOAD  R0, (SP+10)		; ispitivani podatak nalazi se u R0
+				LOAD  R0, (SP+10)			; ispitivani podatak nalazi se u R0
 				LOAD  R1, (GPIO0_LEDICE)	; pohranjivanje prethodnog stanja ledica
 				PUSH  R1
-				LOAD  R1, (GPIO0_RGB)	; pohranjivanje prethodnog stanja RGB
+				LOAD  R1, (GPIO0_RGB)		; pohranjivanje prethodnog stanja RGB
 				PUSH  R1
 				
 				MOVE  %B 100001, R1
@@ -337,7 +428,8 @@ DEGUB_SHIFT		SHR   R0, 4, R0				; shiftanje podatka (4 ledice)
 DEBUG_REPEAT	CALL  DEBUG_WAIT			; kako bi jedan klik bio stvarno samo jedan klik
 				JR    DEBUG_LOOP
 				
-DEBUG_IZLAZ		MOVE  -1, R0
+DEBUG_IZLAZ		MOVE  1, R0
+				ROTR  R0, 1, R0
 				STORE R0, (GPIO1_GIER)
 
 				POP   R1					; obnavljanje starog stanja ledica i RGB
@@ -373,4 +465,9 @@ SYSTEM_STATUS 			DW 0
 
 SYSTEM_ALARM			DW 0
 
+ALARM_FLASH_CONST 		DW %D 4000000
+
+ALARM_NOF_FLASHES 		DW 0
+
+ALARM_NOF_FLASHES_MAX	DW 60					; VRIJEME OVISI O ALARM_FLASH_CONST, PRAVI BROJ FLASHEVA JE DUPLO MANJI
 
