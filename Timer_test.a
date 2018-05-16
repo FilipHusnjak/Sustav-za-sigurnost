@@ -1,0 +1,223 @@
+;;-----------------------------------------------------------------------------------------
+;;	FRISC-PYNQ-SYSTEM
+;;	
+;;	Sve informacije o nacinima spajanja i definicijama ulazno/izlaznih jedinica mozete 
+;;	procitati u dokumentu:
+;;		/PYNQ-LAB-STARTER/docs/PYNQ-FRISC-SYSTEM.pdf
+;;
+;;	Sve informacije o programiranju i konfiguriranju PYNQ plocice mozete procitati u dokumentu:
+;;		/PYNQ-LAB-STARTER/docs/Upute-za-programiranje.pdf
+;;
+;;	Ovaj predlozak ima predefinirani skup memorijskih adresa UI jedinica.
+;;	UI jedinice koje su postavljene u sustavu:
+;; 		- 4 ledice i 2 RGB ledice
+;;		- 4 dugmica i 2 prekidaca
+;;		- 2 x 8bit GPIO (jedan ulazni i jedan izlazni)
+;; 		- 2 x UART kontrolera (za bluetooth ili seriju)
+;; 		- Kontroler za I2C
+;;		- Kontroler za SPI
+;;		- 12-bitni A/D pretvornik
+;;
+;;	Za sva pitanja mozete se obratiti na:
+;;		alen.duspara@fer.hr
+;;		tomislav.bicanic@fer.hr
+;;		marko.pacadi@fer.hr
+;; 		luka.macan@fer.hr
+;;
+;;-----------------------------------------------------------------------------------------
+
+;; Adrese ulazno/izlaznih jedinica	
+GPIO0_LEDICE    EQU	0FFF80000
+GPIO0_RGB 	    EQU	0FFF80008
+
+GPIO1_SWITCHES  EQU	0FFF81000
+GPIO1_BUTTONS   EQU	0FFF81008
+GPIO1_ISR	    EQU	0FFF81120
+GPIO1_GIER	    EQU	0FFF8111C
+GPIO1_IER	    EQU	0FFF81128
+
+GPIO2_INPUT		EQU	0FFF82000
+GPIO2_OUTPUT	EQU	0FFF82008
+GPIO2_ISR	    EQU	0FFF82120
+GPIO2_GIER	    EQU	0FFF8211C
+GPIO2_IER	    EQU	0FFF82128
+
+UART0_RX	    EQU 0FFF83000
+UART0_TX	    EQU 0FFF83004
+UART0_STAT	    EQU 0FFF83008
+UART0_CTRL	    EQU 0FFF8300C
+
+UART1_RX	    EQU 0FFF84000
+UART1_TX	    EQU 0FFF84004
+UART1_STAT	    EQU 0FFF84008
+UART1_CTRL	    EQU 0FFF8400C
+
+I2C_GIE			EQU 0FFF8501C 	; I2C global interrupt enable register
+I2C_ISR			EQU 0FFF85020 	; I2C interrupt status register
+I2C_IER			EQU 0FFF85028 	; I2C interrupt enable register
+I2C_CR			EQU 0FFF85100 	; I2C control register
+I2C_SR			EQU 0FFF85104 	; I2C status register
+I2C_TX_FIFO		EQU 0FFF85108 	; I2C transmit FIFO
+I2C_RX_FIFO	 	EQU 0FFF8510C 	; I2C recieve FIFO
+I2C_SA			EQU 0FFF85110 	; I2C slave adress register (adresa na kojoj ce se odazivati - slave mode)
+I2C_TX_FIFO_OCY EQU 0FFF85114 	; I2C transmit FIFO occupancy 0 = 1 podatak, 1 = 2 podatka...
+I2C_RX_FIFO_OCY	EQU 0FFF85118 	; I2C recieve FIFO occupancy 0 = 1 podatak, 1 = 2 podatka...
+I2C_RX_FIFO_PIR	EQU 0FFF85120 	; I2C RX FIFO - nakon koliko podataka ce se napraviti interrupt, ondosno max velicina RX_FIFO-a
+
+SPI_CR			EQU 0FFF86060 	; SPI control register
+SPI_SR			EQU 0FFF86064 	; SPI status register
+SPI_DTR			EQU 0FFF86068 	; SPI data transmit register
+SPI_DRR			EQU 0FFF8606C 	; SPI data receive register
+SPI_SSR			EQU 0FFF86070 	; SPI Slave select register
+SPI_GIER		EQU 0FFF8601C 	; SPI global interrupt enable register
+SPI_IER			EQU 0FFF86028 	; SPI interrupt enable register
+SPI_ISR			EQU 0FFF86020 	; SPI interrupt status register
+
+TIMER0_CSR		EQU	0FFF87000 	; Timer 0 Control and Status Register
+TIMER0_LR		EQU	0FFF87004 	; Timer 0 Load Register
+TIMER0_CR		EQU	0FFF87008 	; Timer 0 Counter Register
+TIMER1_CSR		EQU	0FFF87010 	; Timer 1 Control and Status Register
+TIMER1_LR		EQU	0FFF87014 	; Timer 1 Load Register
+TIMER1_CR		EQU	0FFF87018 	; Timer 1 Counter Register
+
+INTC_NMI_ISR	EQU 0FFF88000   ; Interrupt status register
+INTC_NMI_IAR	EQU 0FFF8800C   ; Interrupt aknowledge register
+INTC_NMI_SIE	EQU 0FFF88010   ; Set interrupt enable
+INTC_NMI_CIE	EQU 0FFF88014   ; Clear interrupt enable
+INTC_NMI_MER	EQU 0FFF8801C   ; Master enable register
+
+INTC_MI_ISR		EQU 0FFF89000	; Interrupt status register
+INTC_MI_IAR		EQU 0FFF8900C	; Interrupt aknowledge register
+INTC_MI_SIE		EQU 0FFF89010	; Set interrupt enable
+INTC_MI_CIE		EQU 0FFF89014	; Clear interrupt enable
+INTC_MI_MER		EQU 0FFF8901C	; Master enable register
+
+ADC_A0			EQU	0FFF8A244	; Vrijednost A/D pretvorbe na ulazu A0
+
+
+; PROGRAMSKI KOD ZA "SUSTAV ZA SIGURNOST" ###########################
+
+				ORG 0
+MAIN			MOVE 10000, SP	; inicijalizacija SP
+				JR MAIN_DUMMY	; skok u glavni program
+				
+				
+; PREKIDNI POTPROGRAM - NEMASKIRAJUCI ###############################
+
+				ORG 0C
+
+				PUSH  R0							; spremanje konteksta
+				MOVE  SR, R0
+				PUSH  R0
+
+				LOAD  R0, (TIMER0_CSR)				; testiraj je li timer izazvao NMI
+				AND   R0, %B 000100000000, R0
+				JR_NZ NMI_TIMER
+				
+				
+				LOAD  R0, (GPIO1_ISR)				; bio je button
+				STORE R0, (GPIO1_ISR)
+				MOVE  1, R0
+				STORE R0, (INTC_NMI_IAR)
+				JR 	  KRAJ_NMI
+				
+NMI_TIMER		LOAD  R0, (TIMER0_CSR)				; clear interrupt
+				OR    R0, %B 0100000000, R0
+				STORE R0, (TIMER0_CSR)
+				
+				LOAD  R0, (GPIO2_OUTPUT)			; toggle zvucnik
+				XOR   R0, 1, R0
+				STORE R0, (GPIO2_OUTPUT)
+				
+				LOAD  R0, (ALARM_NOF_FLASHES)					; RESETIRATI NA 0 !!!!!!!!!
+				ADD   R0, 1, R0
+				STORE R0, (ALARM_NOF_FLASHES)
+				
+				CMP   R0, %D 30									; VRIJEME OVISI O ALARM_FLASH_CONST, PRAVI BROJ FLASHEVA JE DUPLO MANJI
+				JR_EQ SET_ALARM_OFF
+				
+				LOAD  R0, (GPIO0_RGB)				; pali ili gasi crvenu lampicu?
+				AND   R0, %B 111000, R0
+				JR_NZ RGB_RED_WAS_ON
+				
+RGB_RED_WAS_OFF	LOAD  R0, (GPIO0_RGB)				; upali crvenu lampicu, ne diraj drugu
+				OR    R0, %B 100000, R0
+				STORE R0, (GPIO0_RGB)
+				JR    END_NMI_TIMER
+				
+RGB_RED_WAS_ON	LOAD  R0, (GPIO0_RGB)				; ugasi crvenu lampicu, ne diraj drugu
+				AND   R0, %B 000111, R0
+				STORE R0 (GPIO0_RGB)
+				JR    END_NMI_TIMER
+
+SET_ALARM_OFF	LOAD  R0, (TIMER0_CSR)				; zaustavi timer
+				AND   R0, %B 111101011111, R0
+				STORE R0, (TIMER0_CSR)
+				
+				LOAD  R0, (GPIO0_RGB)				; ugasi crvenu lampicu, ne diraj drugu
+				AND   R0, %B 000111, R0
+				STORE R0, (GPIO0_RGB)
+				
+				MOVE  0, R0
+				STORE R0, (GPIO2_OUTPUT)			; ugasi zvucnik
+				STORE R0, (ALARM_NOF_FLASHES)		; resetiraj broj flasheva lampice
+				JR 	  END_NMI_TIMER
+				
+END_NMI_TIMER	MOVE  %B 01000000, R0							; MOVE 40, R0   CISTI TIMER !!!
+				STORE R0, (INTC_NMI_IAR)
+				JR    KRAJ_NMI
+
+				
+KRAJ_NMI		POP   R0							; restauriraj kontekst
+				MOVE  R0, SR
+				POP   R0
+
+				RETN
+				
+				
+; MAIN ##############################################################
+
+MAIN_DUMMY 		MOVE  %B 10000, SR 			; GIE enable
+
+				MOVE  3, R0
+				STORE R0, (INTC_NMI_MER)	; enable
+				STORE R0, (INTC_MI_MER)		; enable
+				
+				MOVE  %B 1010101, R0		; nemaskirajuci ;;;; PROVJERITI
+				STORE R0, (INTC_NMI_SIE)
+				
+				MOVE  %B 0100010, R0		; prekid,
+				STORE R0, (INTC_MI_SIE) 	; prekid
+				
+				MOVE  -1, R0
+				STORE R0, (GPIO1_GIER)		; globalni enable za
+				STORE R0, (GPIO1_IER)		; prekide
+				STORE R0, (GPIO2_GIER)		; globalni enable za
+				STORE R0, (GPIO2_IER)		; prekide
+				
+				
+				
+				MOVE  %B 000010, R0				; pocetno postavljanje zelene ledice za testiranje
+				STORE R0, (GPIO0_RGB)
+				
+				
+				LOAD  R0, (ALARM_FLASH_CONST)	; priprema timera
+				STORE R0, (TIMER0_LR)
+				MOVE  %B 000101110010, R0		; punjenje i konfiguriranje
+				STORE R0, (TIMER0_CSR)
+				
+				LOAD  R0, (TIMER0_CSR)			; rutina za aktivaciju timera - pozvati za pokretanje alarma
+				AND   R0, %B 111101011111, R0
+				OR    R0, %B 000010000000, R0
+				STORE R0, (TIMER0_CSR)
+				
+				
+MAIN_LOOP		JR MAIN_LOOP
+				HALT
+				
+				
+				
+ALARM_FLASH_CONST DW %D 4000000
+ALARM_NOF_FLASHES DW 0
+				
+				
